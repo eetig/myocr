@@ -1,0 +1,13 @@
+.gradle
+build
+.idea
+.git
+*.iml
+*.iws
+*.ipr
+out
+.vscode
+.DS_Store
+logs
+# 本地开发配置：内含本机 Nacos 地址，且腾讯云密钥可能落在这里，绝不能进构建上下文
+config
