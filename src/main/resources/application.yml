@@ -1,0 +1,54 @@
+server:
+  port: ${SERVER_PORT:8085}
+
+spring:
+  application:
+    name: myocr
+  cloud:
+    nacos:
+      discovery:
+        # 本地开发默认连本机 Nacos；容器部署由 application-prod.yml 覆盖
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+  servlet:
+    multipart:
+      # 单据图片通常 1~3MB；内嵌了图片的导出文件可能更大，留足余量
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+ocr:
+  # 启用的识别引擎，对应 OcrEngine#name()
+  #   mock    —— 返回固定样例数据，不需要任何密钥，用于接口联调与前端开发（默认）
+  #   tencent —— 腾讯云「文档抽取（多模态版）」ExtractDocMulti，需配置下方密钥
+  engine: ${OCR_ENGINE:mock}
+
+  # 单张图片大小上限（字节）。超过直接拒绝，避免把超大图送到外部 API
+  max-image-bytes: ${OCR_MAX_IMAGE_BYTES:10485760}
+
+  # ---- 腾讯云配置（engine=tencent 时必填；凭据不落盘到仓库）----
+  # 本地：项目根 config/application.yml（已 gitignore）
+  # 生产：1Panel 环境变量
+  tencent:
+    secret-id: ${TENCENT_SECRET_ID:}
+    secret-key: ${TENCENT_SECRET_KEY:}
+    region: ${TENCENT_REGION:ap-guangzhou}
+    endpoint: ${TENCENT_OCR_ENDPOINT:ocr.tencentcloudapi.com}
+
+    # 模版配置 id：General 通用场景 / Table 表格模版
+    # 领料单这类「表头 + 多行物料」的单据，两种配置的返回结构差异较大，
+    # 是识别效果的主要调节项，联调时按实际效果选定。
+    config-id: ${TENCENT_OCR_CONFIG_ID:General}
+
+    # 自定义结构化字段（ItemNames）。只识别这三类，单位与序号不识别：
+    #   单位 —— 由业务方按物料编码查主数据带出
+    #   序号 —— 由前端按行号生成
+    item-names:
+      - 单据类型
+      - 单据号
+      - 日期
+      - 物料编码
+      - 物料名称
+      - 数量
+
+    # 联调期开启：把腾讯云原始响应 JSON 打进日志，便于核对字段映射。
+    # 稳定后应关闭（原始响应含单据全文，长期打印会放大日志量）。
+    log-raw-response: ${TENCENT_OCR_LOG_RAW:false}

@@ -1,0 +1,60 @@
+# ============================================================
+# 生产环境配置（容器内生效，由 ENTRYPOINT 的 --spring.profiles.active=prod 激活）
+# 所有地址与密钥均通过环境变量注入，换服务器/换厂商不需要重新打 jar
+# ============================================================
+server:
+  port: ${SERVER_PORT:8085}
+  # 优雅停机：容器收到 SIGTERM 后先停止接收新请求，处理完在途请求再退出
+  shutdown: graceful
+
+spring:
+  application:
+    name: myocr
+
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+  cloud:
+    nacos:
+      discovery:
+        # 容器之间用容器名互访，不要写 127.0.0.1（那是容器自己）
+        server-addr: ${NACOS_SERVER_ADDR:1Panel-nacos-qquH-standalone:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        register-enabled: true
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+# ------------------------------------------------------------
+# 识别引擎
+#   OCR_ENGINE=mock    返回固定样例，不需要密钥（联调用）
+#   OCR_ENGINE=tencent 真实识别，需要下面三个环境变量
+# ------------------------------------------------------------
+ocr:
+  engine: ${OCR_ENGINE:mock}
+  max-image-bytes: ${OCR_MAX_IMAGE_BYTES:10485760}
+  tencent:
+    # 生产凭据由 1Panel 环境变量注入，仓库内不落盘
+    secret-id: ${TENCENT_SECRET_ID:}
+    secret-key: ${TENCENT_SECRET_KEY:}
+    region: ${TENCENT_REGION:ap-guangzhou}
+    endpoint: ${TENCENT_OCR_ENDPOINT:ocr.tencentcloudapi.com}
+    # 模版配置 id（General 通用 / Table 表格），换模版不需要重新打 jar
+    config-id: ${TENCENT_OCR_CONFIG_ID:General}
+    # 排查识别异常时可临时置 true 打印原始响应；默认关闭，避免单据全文长期进日志
+    log-raw-response: ${TENCENT_OCR_LOG_RAW:false}
+
+logging:
+  level:
+    root: info
+    org.example: info
+  file:
+    name: /app/logs/myocr.log
+  logback:
+    rollingpolicy:
+      max-file-size: 20MB
+      max-history: 15
+      total-size-cap: 500MB

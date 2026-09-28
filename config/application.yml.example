@@ -1,0 +1,68 @@
+# ============================================================
+# 本地开发配置模板（myocr）
+#
+# 用法：复制为同目录下的 application.yml（该文件已被 .gitignore 排除，不会提交）
+#     cp config/application.yml.example config/application.yml
+#
+# 为什么放在这里：
+#   Spring Boot 会自动加载「工作目录/config/application.yml」，
+#   优先级高于 classpath 里的 application.yml 和 application-prod.yml，
+#   本地覆盖不需要改动（也不会提交）仓库内的任何配置文件。
+#   容器内工作目录没有 config/，所以生产完全不受影响。
+#
+# 为什么不共享：
+#   本文件被 .gitignore 排除 → 每台机器各存一份，互不覆盖、不会误提交。
+#   ⚠️ 因为腾讯云 SecretKey 就在这里，一旦提交等同泄露，切勿手动 git add。
+#
+# ────────────────────────────────────────────────────────────
+# ⚠️ Nacos 地址最容易填错的地方（已在 img-service 上实测踩过）
+#
+#   server-addr 要填「服务端 API」端口，不是「控制台」端口。
+#   Nacos 3.x 起两者分开了：
+#       服务端 API  :8848    ← server-addr 填这个
+#       控制台      :8080    ← 浏览器里打开的地址，填进 server-addr 必然注册失败
+#
+#   自检命令（返回 200 就说明这是服务端 API）：
+#     curl -s -o /dev/null -w "%{http_code}\n" \
+#          http://<nacos-host>:8848/nacos/v1/ns/operator/metrics
+#
+#   另一个坑：带 --spring.profiles.active=prod 本地启动会失败 ——
+#   application-prod.yml 里的 Nacos 地址是「容器名」，本机解析不了。
+#   本地一律不带 prod profile 启动。
+# ────────────────────────────────────────────────────────────
+#
+# 三个环境（本文件只管「本地」这一档）：
+#
+#   家里       : Nacos 192.168.3.7:8848
+#   公司       : Nacos 127.0.0.1:8848
+#   远程服务器 : 不用本文件！容器内没有 config/，
+#                走 application-prod.yml + 1Panel 的环境变量
+# ============================================================
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        # 按你当前所在环境改成上面三个值之一
+        server-addr: 127.0.0.1:8848
+
+ocr:
+  # ── 用哪个识别引擎 ──────────────────────────────────────────
+  #   mock    返回固定样例数据，不需要任何密钥（默认，用于接口联调）
+  #   tencent 腾讯云「文档抽取（多模态版）」ExtractDocMulti，需填下方密钥
+  engine: mock
+
+  # 接入真实引擎后改成 tencent，并填写下面三项
+  tencent:
+    # ⚠️ 凭据不写进仓库，只在本文件里填
+    secret-id: 在此填入腾讯云 SecretId
+    secret-key: 在此填入腾讯云 SecretKey
+    region: ap-guangzhou
+
+    # 模版配置 id：General 通用场景 / Table 表格模版
+    # 「表头 + 多行物料」的单据两种配置返回结构差异较大，联调时按实际效果选定
+    # config-id: General
+
+    # 联调验证期置 true：把腾讯云原始响应 JSON 打进日志，用于核对字段映射
+    # 确认无误后改回 false（原始响应含单据全文，长期开会放大日志量）
+    # log-raw-response: true
