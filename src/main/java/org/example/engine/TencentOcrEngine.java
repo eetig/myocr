@@ -47,8 +47,17 @@ public class TencentOcrEngine implements OcrEngine {
 
     public static final String ENGINE_NAME = "tencent";
 
-    /** 图片经 Base64 后不得超过 7MB（腾讯云限制），据此留出余量反推原始字节上限 */
-    private static final long MAX_IMAGE_BYTES = 5L * 1024 * 1024;
+    /**
+     * 腾讯云侧的硬约束：图片**经 Base64 后**不得超过 7MB（SDK 侧限制）。
+     *
+     * <p>原实现写死"原始字节 5MB"，与 {@code ocr.max-image-bytes}（默认 10MB）互相打架：
+     * 6MB 的图会先通过服务层校验、再被引擎拒绝，而报错文案把"原始 5MB"和
+     * "Base64 后 7MB"两个口径混在一句话里（2026-10-15 code-review 的 Suggestion 4）。
+     *
+     * <p>现在两个数字各归其位：Base64 膨胀 4/3，所以原始字节上限 = min(配置上限, 7MB×3/4)。
+     * 配置仍是"服务能收多大"的唯一真相，这里只保证不超过腾讯云的物理限制。
+     */
+    private static final long TENCENT_BASE64_LIMIT = 7L * 1024 * 1024;
 
     private final OcrProperties properties;
 
@@ -86,9 +95,12 @@ public class TencentOcrEngine implements OcrEngine {
 
     @Override
     public RecognizeResult recognize(byte[] imageBytes, String fileName) {
-        if (imageBytes.length > MAX_IMAGE_BYTES) {
-            throw new BusinessException("图片 " + (imageBytes.length / 1024) + "KB 超过腾讯云 7MB（Base64 后）限制，"
-                    + "请先压缩到 " + (MAX_IMAGE_BYTES / 1024 / 1024) + "MB 以内");
+        // 原始字节上限 = min(配置上限, 7MB×3/4)：Base64 膨胀 4/3，配置是"服务能收多大"的唯一真相
+        long maxRawBytes = Math.min(properties.getMaxImageBytes(), TENCENT_BASE64_LIMIT * 3 / 4);
+        if (imageBytes.length > maxRawBytes) {
+            throw new BusinessException("图片 " + (imageBytes.length / 1024) + "KB 超过上限（原始字节最多 "
+                    + (maxRawBytes / 1024 / 1024) + "MB：腾讯云按 Base64 后不超过 7MB 计算，配置项 ocr.max-image-bytes）"
+                    + "，请先压缩");
         }
 
         OcrProperties.Tencent tencent = properties.getTencent();

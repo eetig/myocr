@@ -43,6 +43,12 @@ spring:
 ocr:
   engine: ${OCR_ENGINE:mock}
   max-image-bytes: ${OCR_MAX_IMAGE_BYTES:10485760}
+  # 调用方共享口令：留空=不校验（默认，与改造前一致）；配了值则 /api/ocr/** 必须带
+  # X-Internal-Token。生产由 1Panel 注入。⚠️ 启用前必须确认手机端已带该头（需 App 发版），
+  # 否则线上识别立即 401。见 OcrProperties#getInternalToken()。
+  internal-token: ${OCR_INTERNAL_TOKEN:}
+  # 同时进行的识别调用上限：外部 OCR 付费且单次最长 70 秒，超过则 429 快速失败
+  max-concurrent: ${OCR_MAX_CONCURRENT:4}
   tencent:
     # 生产凭据由 1Panel 环境变量注入，仓库内不落盘
     secret-id: ${TENCENT_SECRET_ID:}

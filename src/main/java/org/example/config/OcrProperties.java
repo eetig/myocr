@@ -27,6 +27,26 @@ public class OcrProperties {
     /** 单张图片大小上限（字节），超过直接拒绝，避免把超大图送到外部 API */
     private long maxImageBytes = 10L * 1024 * 1024;
 
+    /**
+     * 调用方共享口令（2026-10-15 code-review 的 Critical 3）。
+     *
+     * <p>本服务没有引入 spring-boot-starter-security，`/api/ocr/recognize` 原先**完全免鉴权**，
+     * 而它每次调用都会直达腾讯云**付费**接口、单次最长占线程 70 秒（HttpProfile 60s+10s）——
+     * 等于对外开了一个付费代理：一张 1MB 的合法图片就能以小请求放大成大占用。
+     *
+     * <p>为什么做成**可开关**而不是直接强制：调用方是**已发行的手机 App**（不是 hnd_factory），
+     * 强制校验会让线上立即 401。所以口径是「配置了才校验」：
+     * <ul>
+     *   <li>留空（默认）：行为与改造前一致，本地联调不受影响；</li>
+     *   <li>配上值：`/api/ocr/**` 必须带 {@code X-Internal-Token} 且相等，否则 401。</li>
+     * </ul>
+     * 生产启用需要同时在手机端带上该头（见 {@code src/api/config.js}），属于一次 App 发版。
+     */
+    private String internalToken = "";
+
+    /** 同时进行的识别调用上限（信号量，默认 4）。超过则快速失败，不再排队占线程 */
+    private int maxConcurrent = 4;
+
     /** 腾讯云引擎配置（{@code ocr.engine=tencent} 时生效） */
     private Tencent tencent = new Tencent();
 
@@ -44,6 +64,22 @@ public class OcrProperties {
 
     public void setMaxImageBytes(long maxImageBytes) {
         this.maxImageBytes = maxImageBytes;
+    }
+
+    public String getInternalToken() {
+        return internalToken;
+    }
+
+    public void setInternalToken(String internalToken) {
+        this.internalToken = internalToken;
+    }
+
+    public int getMaxConcurrent() {
+        return maxConcurrent;
+    }
+
+    public void setMaxConcurrent(int maxConcurrent) {
+        this.maxConcurrent = maxConcurrent;
     }
 
     public Tencent getTencent() {
