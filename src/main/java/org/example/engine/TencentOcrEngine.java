@@ -175,6 +175,13 @@ public class TencentOcrEngine implements OcrEngine {
                     httpProfile.setConnTimeout(10);
                     // 文档抽取是模型推理，偶发慢于普通 OCR，读超时留足
                     httpProfile.setReadTimeout(60);
+                    // ⚠️ 必须设写超时（2026-10-16 性能审查，变更-073）：
+                    //   SDK 的 HttpProfile 默认 writeTimeout = 0，而 OkHttp 语义里 0 = **不超时**。
+                    //   请求体是 base64 后的数 MB 字节，一旦连接半开（移动网络、NAT 超时、对端窗口为 0），
+                    //   这个线程会**无限期**阻塞在 socket 写上。而 OcrService 的许可只有
+                    //   max-concurrent 个，4 个被挂死就等于容量归零、只能重启恢复 —— readTimeout
+                    //   只覆盖「发完等响应」，覆盖不了「发不出去」。
+                    httpProfile.setWriteTimeout(30);
 
                     ClientProfile clientProfile = new ClientProfile();
                     clientProfile.setHttpProfile(httpProfile);
